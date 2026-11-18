@@ -15,7 +15,11 @@ function send(res, code, obj) { res.writeHead(code, { "Content-Type": "applicati
 
 async function rj(url, opt) {
   let r; const host = new URL(url).host;
-  try { r = await fetch(url, opt); } catch (e) { throw new Err("This computer cannot reach Roblox (" + host + ")", String(e.cause && e.cause.code || e.message)); }
+  for (let a = 0; a < 3; a++) { // retry politely when Roblox says "too many requests"
+    try { r = await fetch(url, opt); } catch (e) { throw new Err("This computer cannot reach Roblox (" + host + ")", String(e.cause && e.cause.code || e.message)); }
+    if (r.status !== 429 || a === 2) break;
+    await sleep(Math.min(5, +r.headers.get("retry-after") || a + 1) * 1000);
+  }
   if (!r.ok) throw new Err("Roblox answered HTTP " + r.status + " from " + host, (await r.text()).slice(0, 200));
   try { return JSON.parse(await r.text()); } catch (e) { throw new Err("Roblox sent a response that is not JSON (" + host + ")"); }
 }
@@ -48,17 +52,24 @@ async function thumb(id) {
   throw new Err("Roblox is still generating the picture", "Timed out after ~18s; it will retry on the next check", 504);
 }
 
+// Fewer Roblox calls: user id remembered, picture re-checked at most once a minute for ALL visitors,
+// and if Roblox refuses (e.g. rate limit) the last good picture keeps showing.
+const users = new Map(); let cooldown = 0;
 async function avatar(q, force) {
-  const u = await resolveUser(q || DEFAULT_USER);
-  const ver = await avatarVersion(u.id);
-  let c = cache.get(u.id), pending = false;
-  if (!c || force || c.ver !== ver || Date.now() - c.at > 6e5) {
-    const meta = await thumb(u.id), mh = sha(meta.imageUrl);
-    if (c && c.ver !== ver && c.mh === mh) { c = { ...c, at: Date.now() }; pending = true; } // outfit changed but Roblox hasn't re-rendered yet -> retry next check
-    else c = { ver, mh, meta, at: Date.now() };
-    cache.set(u.id, c);
+  const name = (q || DEFAULT_USER || "").trim(), key = name.toLowerCase(), now = Date.now(), c = cache.get(key);
+  const out = (c, extra) => ({ userId: c.userId, username: c.username, modelHash: c.mh, image: "/api/img?u=" + encodeURIComponent(c.imageUrl), ...extra });
+  if (c && now - c.at < (force ? 15e3 : 6e4)) return out(c);
+  if (c && now < cooldown) return out(c, { stale: true, note: "Roblox is limiting this server, showing last picture" });
+  try {
+    let u = users.get(key); if (!u) { u = await resolveUser(name); users.set(key, u); }
+    const meta = await thumb(u.id);
+    const n = { userId: u.id, username: u.name, imageUrl: meta.imageUrl, mh: sha(meta.imageUrl), at: Date.now() };
+    cache.set(key, n); return out(n);
+  } catch (e) {
+    if (/429/.test(e.message)) cooldown = Date.now() + 60e3;
+    if (c) return out(c, { stale: true, note: e.message });
+    throw e;
   }
-  return { userId: u.id, username: u.name, version: ver, modelHash: c.mh, image: "/api/img?u=" + encodeURIComponent(c.meta.imageUrl), pending };
 }
 
 function cdnHost(h) { let i = 31; for (const ch of h) i ^= ch.charCodeAt(0); return "t" + (i % 8) + ".rbxcdn.com"; }

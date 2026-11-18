@@ -71,7 +71,7 @@ let r,d;
 try{r=await fetch("/api/avatar?user="+encodeURIComponent((cfg.robloxUser||"").trim())+(force?"&force=1":""),{cache:"no-store"});d=await r.json()}
 catch(e){throw new Error("Cannot reach the avatar server (/api/avatar).\nStart it with: node server.js\nand open http://localhost:8888")}
 if(!r.ok||d.error)throw new Error(d.error+(d.detail?"\n"+d.detail:""));
-if(d.modelHash===state.hash&&pivot.children.length){setStatus("Up to date · "+d.username+(d.pending?" · outfit changed, waiting for Roblox to re-render":"")+" · "+new Date().toLocaleTimeString());return}
+if(d.modelHash===state.hash&&pivot.children.length){setStatus("Up to date · "+d.username+(d.stale?" · "+d.note:"")+" · "+new Date().toLocaleTimeString());return}
 const o=await loadModel(d);clearPivot();pivot.add(o);state.hash=d.modelHash;showErr("");
 setStatus("Loaded "+d.username+" · "+new Date().toLocaleTimeString())}
 catch(e){setStatus("Error: "+e.message.replace(/\n/g," — "));if(!pivot.children.length)showErr(e.message)}
