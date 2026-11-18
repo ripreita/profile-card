@@ -1,0 +1,132 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>profile</title><meta name="color-scheme" content="dark">
+<style>
+:root{--bg:#000;--fg:#fff;--muted:#8a8a8a;--w:294px;--h:522px;--r:34px;--bw:1px;--bc:#262626;--cbg:#000;--pad:24px;--gap:14px;--ic:20px;--fs:14px;--font:'Courier New',monospace;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);overflow:hidden}
+#stars{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+#clock{position:fixed;top:calc(18px + env(safe-area-inset-top,0px));left:22px;font-size:11px;font-weight:700;letter-spacing:.12em;z-index:2}
+nav{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:0;right:0;display:flex;justify-content:center;gap:6px;z-index:2}
+nav a,nav span{display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:10px;font-size:11px;color:var(--muted);text-decoration:none;letter-spacing:.05em}
+nav .on{background:#1c1c1c;color:var(--fg);font-weight:700}nav svg{width:12px;height:12px}
+main{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;pointer-events:none}
+.card{pointer-events:auto;width:var(--w);height:var(--h);max-width:94vw;max-height:84vh;border:var(--bw) solid var(--bc);border-radius:var(--r);background:var(--cbg);display:flex;flex-direction:column;align-items:center;padding:var(--pad);gap:var(--gap)}
+.stage{position:relative;flex:1;width:100%;min-height:0;cursor:grab;touch-action:none}.stage:active{cursor:grabbing}.stage canvas{display:block;width:100%;height:100%}
+#name{font-size:var(--fs);letter-spacing:.18em;font-weight:700;color:var(--fg)}
+#soc{display:flex;gap:calc(var(--ic)*.7);min-height:var(--ic)}#soc a{color:var(--fg);display:block;width:var(--ic);height:var(--ic);opacity:.95}#soc a:hover{opacity:.6}#soc svg{width:100%;height:100%}
+#hint{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:0;right:0;text-align:center;font-size:10px;color:#666;letter-spacing:.08em;z-index:2}
+#gear{position:fixed;left:14px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:5;background:none;border:0;color:#444;font-size:18px;cursor:pointer;padding:4px}#gear:hover{color:#fff}
+#dash{position:fixed;top:0;right:0;bottom:0;width:340px;max-width:100vw;background:#0b0b0b;border-left:1px solid #222;z-index:10;overflow:auto;padding:16px 16px 40px;transform:translateX(105%);transition:transform .25s;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#ddd}
+#dash.open{transform:none}#dash h2{margin:0 0 4px;font-size:14px}#dash h3{margin:20px 0 8px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#888;border-bottom:1px solid #222;padding-bottom:5px}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0}.row>span{flex:0 0 120px;color:#aaa}.row input[type=range]{flex:1}.row input[type=text],.row select,#dash textarea{flex:1;min-width:0;background:#151515;border:1px solid #2a2a2a;color:#eee;padding:5px 7px;border-radius:6px;font:inherit}
+.row input[type=color]{width:44px;height:26px;padding:0;border:1px solid #2a2a2a;background:none}#dash textarea{width:100%;height:80px}
+#dash button,.fl{background:#1a1a1a;border:1px solid #333;color:#eee;padding:6px 10px;border-radius:7px;font:inherit;cursor:pointer}#dash button:hover{background:#262626}
+.x{padding:4px 8px!important}.rowb{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.note{color:#777;font-size:11px}
+#err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:12px;font-size:10px;line-height:1.5;color:#c66;white-space:pre-wrap;pointer-events:none}
+</style></head><body>
+<canvas id="stars"></canvas><div id="clock"></div><nav id="nav"></nav>
+<main><div class="card"><div class="stage" id="stage"><div id="err"></div></div><div id="name"></div><div id="soc"></div></div></main>
+<div id="hint"></div><button id="gear" title="Customize">⚙</button>
+<aside id="dash"><div class="rowb" style="justify-content:space-between;align-items:center"><h2>Customize</h2><button id="close">close ✕</button></div><div class="note">Changes apply live and save in this browser.</div><div id="ctl"></div><div id="lists"></div><div id="files"></div><div id="io"></div></aside>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=s=>document.querySelector(s),E=(t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e};
+const FONTS={"Courier New":"'Courier New',Courier,monospace","System mono":"ui-monospace,Menlo,Consolas,monospace","Sans":"system-ui,-apple-system,Segoe UI,sans-serif","Serif":"Georgia,'Times New Roman',serif","Rounded":"'Trebuchet MS',Verdana,sans-serif"};
+const ICONS={discord:'<path fill="currentColor" d="M5 5c2-1 4-1.5 5.200-1.600l.4 1h2.800l.4-1C15 3.500 17 4 19 5c1.600 3 2.600 7 2 11.500-2 1.500-4 2.200-5 2.200l-1.100-1.700c.7-.2 1.300-.6 1.800-1-3.200 1.200-7.400 1.200-10.600 0 .5.400 1.100.8 1.800 1L7 18.700c-1 0-3-.7-5-2.200C1.400 12 3.400 8 5 5z"/><circle cx="8.700" cy="12.500" r="1.700" fill="#000"/><circle cx="15.300" cy="12.500" r="1.700" fill="#000"/>',
+tiktok:'<path fill="currentColor" d="M15.500 2.500c.3 2.600 1.800 4.200 4.500 4.400v3.400c-1.600 0-3-.5-4.400-1.400v6.300a6 6 0 11-6-6c.3 0 .6 0 1 .1v3.500a2.600 2.600 0 102 2.500V2.500z"/>',
+roblox:'<path fill="currentColor" fill-rule="evenodd" d="M5.500 3.500l15 4-4 15-15-4zM10.200 10.200l3.300.9-.9 3.300-3.300-.9z"/>',
+telegram:'<path fill="currentColor" fill-rule="evenodd" d="M21.500 3.500L2.500 11l5.200 1.900 1.600 6 3-3.400 4.600 3.400zM8.800 13l7.900-5.600-5.800 7.200z"/>',
+youtube:'<path fill="currentColor" fill-rule="evenodd" d="M21.600 7.200a2.500 2.500 0 00-1.800-1.800C18.200 5 12 5 12 5s-6.200 0-7.800.4A2.500 2.500 0 002.400 7.200C2 8.800 2 12 2 12s0 3.200.4 4.800a2.500 2.500 0 001.800 1.800C5.800 19 12 19 12 19s6.200 0 7.800-.4a2.500 2.500 0 001.800-1.800c.4-1.600.4-4.800.4-4.800s0-3.200-.4-4.800zM10 15V9l5.200 3z"/>',
+instagram:'<g fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></g><circle cx="17.500" cy="6.500" r="1.200" fill="currentColor"/>',
+x:'<path d="M4 4l16 16M20 4L4 20" stroke="currentColor" stroke-width="2.400" stroke-linecap="round" fill="none"/>',
+link:'<path d="M10 14a4 4 0 005.700 0l3-3a4 4 0 00-5.700-5.700l-1 1M14 10a4 4 0 00-5.700 0l-3 3a4 4 0 005.700 5.700l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'};
+const HOME='<svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h14V10" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+const D={user:"north",font:FONTS["Courier New"],fg:"#ffffff",muted:"#8a8a8a",fs:14,gap:14,avScale:1,speed:1,auto:1,zoomLock:0,robloxUser:"",refresh:60,
+cardW:294,cardH:522,radius:34,bw:1,bc:"#262626",cardBg:"#000000",pad:24,icon:20,bg:"#000000",starColor:"#ffffff",starCount:450,starSize:1,twinkle:1,clock:1,h24:0,showHint:1,hint:"drag to rotate · scroll to zoom",showGear:1,pass:"",
+socials:[{type:"discord",url:""},{type:"tiktok",url:""},{type:"roblox",url:""},{type:"telegram",url:""}],
+nav:[{label:"temp",url:"",active:0},{label:"home",url:"",active:1},{label:"temp",url:"",active:0}]};
+let cfg;try{cfg=Object.assign({},D,JSON.parse(localStorage.getItem("profile-cfg")||"{}"))}catch(e){cfg=Object.assign({},D)}
+let st;function save(){clearTimeout(st);st=setTimeout(()=>{try{localStorage.setItem("profile-cfg",JSON.stringify(cfg))}catch(e){alert("Browser storage is full — try a smaller image/model.")}},250)}
+const safe=u=>/^(https?:|mailto:)/i.test(u)?u:(u?"https://"+u:"");
+/* ---------- stars ---------- */
+const sc=$("#stars"),sx=sc.getContext("2d");let stars=[];
+function ensureStars(){while(stars.length<cfg.starCount)stars.push({x:Math.random(),y:Math.random(),r:Math.random()*.8+.4,a:Math.random()*.6+.3,p:Math.random()*6.28,s:Math.random()*1.5+.3});stars.length=cfg.starCount}
+function sizeStars(){const d=devicePixelRatio||1;sc.width=innerWidth*d;sc.height=innerHeight*d;drawStars(0)}
+function drawStars(t){const d=devicePixelRatio||1;sx.setTransform(1,0,0,1,0,0);sx.clearRect(0,0,sc.width,sc.height);sx.fillStyle=cfg.starColor;
+for(const s of stars){sx.globalAlpha=cfg.twinkle?s.a*(.65+.35*Math.sin(t*s.s+s.p)):s.a;const z=s.r*cfg.starSize*d;sx.fillRect(s.x*sc.width,s.y*sc.height,z,z)}}
+/* ---------- three ---------- */
+const stage=$("#stage"),renderer=new THREE.WebGLRenderer({antialias:true,alpha:true}),scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(30,1,.1,100),pivot=new THREE.Group();
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.outputEncoding=THREE.sRGBEncoding;stage.appendChild(renderer.domElement);scene.add(pivot);
+scene.add(new THREE.AmbientLight(0xffffff,.75));const dl=new THREE.DirectionalLight(0xffffff,.8);dl.position.set(3,5,6);scene.add(dl);
+let rotY=0,zoom=1,drag=false,lx=0;
+const state={hash:"",busy:0,again:0,force:0};let rt;
+function showErr(m,c){const e=$("#err");e.textContent=m||"";e.style.color=c||"#c66";e.style.display=m?"flex":"none"}
+function setStatus(m){const e=$("#avst");if(e)e.textContent=m}
+function clearPivot(){while(pivot.children.length)pivot.remove(pivot.children[0])}
+function loadModel(d){return new Promise((res,rej)=>{new THREE.TextureLoader().load(d.image,t=>{t.encoding=THREE.sRGBEncoding;t.anisotropy=8;const m=new THREE.Mesh(new THREE.PlaneGeometry(5,5),new THREE.MeshBasicMaterial({map:t,transparent:true,side:THREE.DoubleSide,alphaTest:.02})),w=new THREE.Group();w.add(m);res(w)},undefined,()=>rej(new Error("Could not download the avatar picture from Roblox")))})}
+async function loadAvatar(force){
+if(state.busy){state.again=1;state.force=state.force||force;return}
+state.busy=1;
+try{
+if(!pivot.children.length)showErr("loading avatar…","#777");
+let r,d;
+try{r=await fetch("/api/avatar?user="+encodeURIComponent((cfg.robloxUser||"").trim())+(force?"&force=1":""),{cache:"no-store"});d=await r.json()}
+catch(e){throw new Error("Cannot reach the avatar server (/api/avatar).\nStart it with: node server.js\nand open http://localhost:8888")}
+if(!r.ok||d.error)throw new Error(d.error+(d.detail?"\n"+d.detail:""));
+if(d.modelHash===state.hash&&pivot.children.length){setStatus("Up to date · "+d.username+(d.pending?" · outfit changed, waiting for Roblox to re-render":"")+" · "+new Date().toLocaleTimeString());return}
+const o=await loadModel(d);clearPivot();pivot.add(o);state.hash=d.modelHash;showErr("");
+setStatus("Loaded "+d.username+" · "+new Date().toLocaleTimeString())}
+catch(e){setStatus("Error: "+e.message.replace(/\n/g," — "));if(!pivot.children.length)showErr(e.message)}
+finally{state.busy=0;if(state.again){state.again=0;const f=state.force;state.force=0;loadAvatar(f)}}}
+function build(){loadAvatar(true)}
+function schedule(){setTimeout(()=>loadAvatar(false).finally(schedule),Math.max(15,+cfg.refresh||60)*1000)}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)loadAvatar(false)});
+function fit(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setSize(w,h);cam.aspect=w/h;cam.updateProjectionMatrix()}
+new ResizeObserver(fit).observe(stage);
+stage.addEventListener("pointerdown",e=>{drag=true;lx=e.clientX;stage.setPointerCapture(e.pointerId)});
+stage.addEventListener("pointermove",e=>{if(drag){rotY=Math.max(-1,Math.min(1,rotY+(e.clientX-lx)*.012));lx=e.clientX}});
+const up=()=>drag=false;stage.addEventListener("pointerup",up);stage.addEventListener("pointercancel",up);
+stage.addEventListener("wheel",e=>{e.preventDefault();if(!+cfg.zoomLock)zoom=Math.min(3,Math.max(.4,zoom*Math.exp(-e.deltaY*.0012)))},{passive:false});
+let swayT=0,last=performance.now();
+function loop(n){requestAnimationFrame(loop);const dt=Math.min((n-last)/1000,.1);last=n;
+if(!drag){let tg=0;if(+cfg.auto){swayT+=dt*cfg.speed;tg=Math.sin(swayT)*.55}rotY+=(tg-rotY)*Math.min(1,dt*4)}pivot.rotation.set(0,rotY,0);pivot.position.set(0,0,0);pivot.scale.setScalar(cfg.avScale);
+cam.position.set(0,0,13/zoom);cam.lookAt(0,0,0);renderer.render(scene,cam);if(+cfg.twinkle)drawStars(n/1000)}
+/* ---------- apply ---------- */
+function tick(){const d=new Date();$("#clock").textContent=d.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit",hour12:!+cfg.h24}).toUpperCase()}
+function renderSoc(){const s=$("#soc");s.innerHTML="";cfg.socials.forEach(o=>{const a=E("a","",`<svg viewBox="0 0 24 24">${ICONS[o.type]||ICONS.link}</svg>`);const u=safe(o.url);if(u){a.href=u;a.target="_blank";a.rel="noopener noreferrer"}a.title=o.type;s.appendChild(a)})}
+function renderNav(){const n=$("#nav");n.innerHTML="";cfg.nav.forEach(o=>{const u=safe(o.url),a=E(u?"a":"span",+o.active?"on":"");if(u){a.href=u;a.target="_blank";a.rel="noopener noreferrer"}a.innerHTML=+o.active?HOME:"<b style='font-weight:400'>···</b>";a.appendChild(document.createTextNode(o.label));n.appendChild(a)})}
+function apply(){const r=document.documentElement.style,p=(k,v)=>r.setProperty(k,v);
+p("--bg",cfg.bg);p("--fg",cfg.fg);p("--muted",cfg.muted);p("--font",cfg.font);p("--w",cfg.cardW+"px");p("--h",cfg.cardH+"px");p("--r",cfg.radius+"px");p("--bw",cfg.bw+"px");p("--bc",cfg.bc);p("--cbg",cfg.cardBg);p("--pad",cfg.pad+"px");p("--gap",cfg.gap+"px");p("--ic",cfg.icon+"px");p("--fs",cfg.fs+"px");
+$("#name").textContent=cfg.user;$("#clock").style.display=+cfg.clock?"":"none";$("#hint").style.display=+cfg.showHint?"":"none";$("#hint").textContent=cfg.hint;$("#gear").style.display=+cfg.showGear?"":"none";
+ensureStars();drawStars(0);tick();fit()}
+/* ---------- dashboard ---------- */
+const S=[["Profile",[["user","Username","text"],["font","Font","sel"],["fg","Text color","color"],["muted","Nav text color","color"],["fs","Username size","range",10,30,1],["gap","Spacing","range",0,50,1]]],
+["Avatar",[["robloxUser","Roblox username / id","text"],["refresh","Check for updates (sec)","range",15,600,5],["avScale","Avatar size","range",.4,1.6,.01],["speed","Rotation speed","range",0,5,.05],["auto","Auto-rotate","chk"],["zoomLock","Lock zoom","chk"]]],
+["Card",[["cardW","Width","range",200,520,1],["cardH","Height","range",300,800,1],["radius","Corner radius","range",0,90,1],["bw","Border width","range",0,6,.5],["bc","Border color","color"],["cardBg","Card background","color"],["pad","Padding","range",0,60,1],["icon","Icon size","range",12,40,1]]],
+["Background & stars",[["bg","Background","color"],["starColor","Star color","color"],["starCount","Star count","range",0,1500,10],["starSize","Star size","range",.5,3,.1],["twinkle","Twinkle","chk"]]],
+["Page",[["clock","Show clock","chk"],["h24","24-hour clock","chk"],["showHint","Show hint","chk"],["hint","Hint text","text"],["showGear","Show ⚙ button","chk"],["pass","Dashboard passcode","text"]]]];
+const AV=[];
+function controls(){const c=$("#ctl");c.innerHTML="";S.forEach(([t,items])=>{c.appendChild(E("h3","",t));items.forEach(([k,l,ty,a,b,s])=>{const r=E("label","row","<span>"+l+"</span>");let i;
+if(ty=="sel"){i=E("select");Object.entries(FONTS).forEach(([n,v])=>{const o=E("option","",n);o.value=v;i.appendChild(o)});i.value=cfg[k]}
+else if(ty=="chk"){i=E("input");i.type="checkbox";i.checked=!!+cfg[k]}
+else{i=E("input");i.type=ty;if(ty=="range"){i.min=a;i.max=b;i.step=s}i.value=cfg[k]}
+i.oninput=()=>{cfg[k]=ty=="chk"?(i.checked?1:0):ty=="range"?+i.value:i.value;apply();if(k=="robloxUser"){clearTimeout(rt);rt=setTimeout(()=>loadAvatar(true),900)}save()};r.appendChild(i);c.appendChild(r)})})}
+function lists(){const L=$("#lists");L.innerHTML="";
+const mk=(title,arr,fields,blank)=>{L.appendChild(E("h3","",title));arr.forEach((o,i)=>{const r=E("div","row");fields.forEach(f=>{let w;
+if(f=="type"){w=E("select");Object.keys(ICONS).forEach(n=>{const op=E("option","",n);op.value=n;w.appendChild(op)});w.value=o.type;w.style.flex="0 0 90px"}
+else if(f=="active"){w=E("input");w.type="checkbox";w.checked=!!+o.active;w.title="active"}
+else{w=E("input");w.type="text";w.value=o[f];w.placeholder=f}
+w.oninput=()=>{o[f]=f=="active"?(w.checked?1:0):w.value;renderSoc();renderNav();save()};r.appendChild(w)});
+const x=E("button","x","✕");x.onclick=()=>{arr.splice(i,1);lists();renderSoc();renderNav();save()};r.appendChild(x);L.appendChild(r)});
+const a=E("button","","+ add");a.onclick=()=>{arr.push(Object.assign({},blank));lists();renderSoc();renderNav();save()};L.appendChild(a)};
+mk("Social icons (type + link)",cfg.socials,["type","url"],{type:"link",url:""});mk("Top navigation (label, link, active)",cfg.nav,["label","url","active"],{label:"new",url:"",active:0})}
+function files(){const F=$("#files");F.innerHTML="<h3>Roblox avatar</h3><div class='note'>Flat picture of your current Roblox avatar, loaded by the local server (Roblox now requires a login for 3D models) and re-checked automatically. Use your username, or id:123456 for a User ID.</div>";const r=E("div","rowb"),b=E("button","","refresh avatar now");b.onclick=()=>loadAvatar(true);r.appendChild(b);F.appendChild(r);const n=E("div","note");n.id="avst";F.appendChild(n)}
+function io(){const I=$("#io");I.innerHTML="<h3>Backup / transfer</h3>";const t=E("textarea");t.placeholder="settings JSON";const r=E("div","rowb");
+const ex=E("button","","export");ex.onclick=()=>{const c=Object.assign({},cfg);t.value=JSON.stringify(c);t.select();try{navigator.clipboard.writeText(t.value)}catch(e){}};
+const im=E("button","","import");im.onclick=()=>{try{cfg=Object.assign({},D,JSON.parse(t.value));save();apply();build();renderSoc();renderNav();controls();lists()}catch(e){alert("Invalid JSON")}};
+const rs=E("button","","reset all");rs.onclick=()=>{if(confirm("Reset everything?")){cfg=Object.assign({},D);save();apply();build();renderSoc();renderNav();controls();lists()}};
+r.append(ex,im,rs);I.append(r,t)}
+function openDash(){if(cfg.pass&&prompt("Passcode")!==cfg.pass)return;$("#dash").classList.add("open")}
+$("#gear").onclick=openDash;$("#close").onclick=()=>$("#dash").classList.remove("open");
+addEventListener("keydown",e=>{if(e.key=="Escape")$("#dash").classList.remove("open");else if(e.shiftKey&&e.key=="E"&&!/INPUT|TEXTAREA/.test(document.activeElement.tagName))openDash()});
+addEventListener("resize",sizeStars);
+apply();renderSoc();renderNav();controls();lists();files();io();sizeStars();build();setInterval(tick,1000);schedule();requestAnimationFrame(loop);
+</script></body></html>
